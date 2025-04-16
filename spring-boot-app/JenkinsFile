@@ -9,7 +9,15 @@ pipeline {
     stage('Checkout') {
       steps {
         sh 'echo passed'
-        //git branch: 'main', url: 'https://github.com/shivendra9203/CICD-App-Deploy.git'
+        // Ensure the repository is checked out explicitly
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: '*/main']],
+          userRemoteConfigs: [[
+            url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
+            credentialsId: 'github'
+          ]]
+        ])
       }
     }
     stage('Build and Test') {
@@ -50,15 +58,28 @@ pipeline {
       }
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-          sh '''
-            git config user.email "shivendrap455@gmail.com"
-            git config user.name "Shivendra Kumar Patel"
-            BUILD_NUMBER=${BUILD_NUMBER}
-            sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" deployment.yml
-            git add deployment.yml
-            git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-          '''
+          script {
+            // Ensure Git context is preserved
+            checkout([
+              $class: 'GitSCM',
+              branches: [[name: '*/main']],
+              userRemoteConfigs: [[
+                url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
+                credentialsId: 'github'
+              ]]
+            ])
+            sh '''
+              ls -la
+              git status
+              git config user.email "shivendrap455@gmail.com"
+              git config user.name "Shivendra Kumar Patel"
+              BUILD_NUMBER=${BUILD_NUMBER}
+              sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" deployment.yml
+              git add deployment.yml
+              git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+            '''
+          }
         }
       }
     }
