@@ -9,10 +9,9 @@ pipeline {
     stage('Checkout') {
       steps {
         sh 'echo passed'
-        // Ensure the repository is checked out explicitly
         checkout([
           $class: 'GitSCM',
-          branches: [[name: '*/main']],
+          branches: [[name: 'main']],
           userRemoteConfigs: [[
             url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
             credentialsId: 'github'
@@ -59,10 +58,9 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           script {
-            // Ensure Git context is preserved
             checkout([
               $class: 'GitSCM',
-              branches: [[name: '*/main']],
+              branches: [[name: 'main']],
               userRemoteConfigs: [[
                 url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
                 credentialsId: 'github'
@@ -71,6 +69,8 @@ pipeline {
             sh '''
               ls -la
               git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-Deploy
+              git checkout main
+              git clean -fd
               git status
               git config user.email "shivendrap455@gmail.com"
               git config user.name "Shivendra Kumar Patel"
@@ -83,6 +83,11 @@ pipeline {
           }
         }
       }
+    }
+  }
+  post {
+    failure {
+      echo 'Pipeline failed! Check logs for details.'
     }
   }
 }
