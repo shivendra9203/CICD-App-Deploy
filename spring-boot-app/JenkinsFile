@@ -6,8 +6,6 @@ pipeline {
         }
     }
     environment {
-        GIT_REPO_URL = 'https://github.com/shivendra9203/CICD-App-Deploy.git'
-        GIT_CREDENTIALS = 'github'
         DOCKER_IMAGE = "shiv9203/cicd-app:${BUILD_NUMBER}"
         SONAR_URL = 'http://34.224.7.236:9000'
         GIT_USER_NAME = 'shivendra9203'
@@ -19,7 +17,7 @@ pipeline {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
                     sh '''
                           set -e
-                          git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
+                           git config --local --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
                           git status
                           echo "Repo already checked out by Jenkins."
                     '''
