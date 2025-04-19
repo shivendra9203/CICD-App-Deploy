@@ -18,9 +18,10 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
                     sh '''
-                        set -e
-                        git config --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
-                        git clone -b main https://${GITHUB_TOKEN}@github.com/shivendra9203/CICD-App-Deploy.git .
+                          set -e
+                          git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
+                          git status
+                          echo "Repo already checked out by Jenkins."
                     '''
                 }
             }
