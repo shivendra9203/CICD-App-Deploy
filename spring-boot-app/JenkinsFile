@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'shiv9203/docker-maven-agent:v1'
-            args '--user 1000:1000 -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/jenkins/workspace/Auto-depoly:/var/lib/jenkins/workspace/Auto-depoly'
+            args '--user 1000:1000 -v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
     environment {
