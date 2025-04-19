@@ -7,7 +7,7 @@ pipeline {
     }
     environment {
         GIT_REPO_URL = 'https://github.com/shivendra9203/CICD-App-Deploy.git'
-        GIT_CREDENTIALS = 'github' // Verify this matches the credential ID
+        GIT_CREDENTIALS = 'github' // Matches the credential ID from the screenshot
         DOCKER_IMAGE = "shiv9203/cicd-app:${BUILD_NUMBER}"
         SONAR_URL = 'http://34.224.7.236:9000'
         GIT_USER_NAME = 'shivendra9203'
