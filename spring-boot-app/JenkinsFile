@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'shiv9203/docker-maven-agent:v1'
-            args '--user 111:113 -v /var/run/docker.sock:/var/run/docker.sock'
+           args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
     environment {
