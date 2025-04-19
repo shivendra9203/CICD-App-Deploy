@@ -21,7 +21,6 @@ pipeline {
                         set -e
                         id
                         git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
-                        git clone -b main https://${GITHUB_TOKEN}@github.com/shivendra9203/CICD-App-Deploy.git .
                         git checkout main
                     '''
                 }
