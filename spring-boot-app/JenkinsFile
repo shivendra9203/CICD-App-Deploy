@@ -7,7 +7,7 @@ pipeline {
     }
     environment {
         GIT_REPO_URL = 'https://github.com/shivendra9203/CICD-App-Deploy.git'
-        GIT_CREDENTIALS = 'github' // Matches the credential ID from the screenshot
+        GIT_CREDENTIALS = 'github'
         DOCKER_IMAGE = "shiv9203/cicd-app:${BUILD_NUMBER}"
         SONAR_URL = 'http://34.224.7.236:9000'
         GIT_USER_NAME = 'shivendra9203'
@@ -19,13 +19,13 @@ pipeline {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
                     sh '''
                         set -e
-                        git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
+                        git config --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
                         git clone -b main https://${GITHUB_TOKEN}@github.com/shivendra9203/CICD-App-Deploy.git .
-                        git checkout main
                     '''
                 }
             }
         }
+
         stage('Build and Test') {
             steps {
                 dir('spring-boot-app') {
@@ -39,43 +39,54 @@ pipeline {
                 }
             }
         }
+
         stage('Static Code Analysis') {
             steps {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     dir('spring-boot-app') {
-                        sh "mvn sonar:sonar -Dsonar.login=${SONAR_TOKEN} -Dsonar.host.url=${SONAR_URL}"
+                        sh '''
+                            mvn sonar:sonar \
+                                -Dsonar.login=${SONAR_TOKEN} \
+                                -Dsonar.host.url=${SONAR_URL}
+                        '''
                     }
                 }
             }
         }
+
         stage('Build and Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     dir('spring-boot-app') {
-                        sh "docker build -t ${DOCKER_IMAGE} ."
-                        sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                        sh "docker push ${DOCKER_IMAGE}"
+                        sh '''
+                            docker build -t ${DOCKER_IMAGE} .
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            docker push ${DOCKER_IMAGE}
+                        '''
                     }
                 }
             }
         }
+
         stage('Update Deployment File') {
             steps {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
                     sh '''
                         set -e
-                        ls -la
-                        git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
+                        git config --add safe.directory /var/lib/jenkins/workspace/Auto-depoly
                         git checkout main
                         git pull --ff-only
+
                         if [ ! -f manifests-file/deployment.yml ]; then
                             echo "Error: manifests-file/deployment.yml not found"
                             exit 1
                         fi
-                        git status
+
                         git config user.email "shivendrap455@gmail.com"
                         git config user.name "Shivendra Kumar Patel"
-                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" manifests-file/deployment.yml
+
+                        sed -i.bak "s/replaceImageTag/${BUILD_NUMBER}/g" manifests-file/deployment.yml
+
                         git add manifests-file/deployment.yml
                         git commit -m "Update deployment image to version ${BUILD_NUMBER}" || echo "No changes to commit"
                         git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME}.git HEAD:main || { echo "Git push failed"; exit 1; }
