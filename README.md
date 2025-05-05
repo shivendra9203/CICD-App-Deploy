@@ -1,66 +1,112 @@
-# Jenkins Pipeline for Java based application using Maven, SonarQube, Argo CD, Helm and Kubernetes
+# Jenkins CI/CD Pipeline for CICD-App-Deploy
 
 ![Screenshot 2023-03-28 at 9 38 09 PM](https://user-images.githubusercontent.com/43399466/228301952-abc02ca2-9942-4a67-8293-f76647b6f9d8.png)
 
 
-Here are the step-by-step details to set up an end-to-end Jenkins pipeline for a Java application using SonarQube, Argo CD, Helm, and Kubernetes:
+This repository contains a Jenkins pipeline configuration for automating the build, test, and deployment of a Spring Boot application. The pipeline pulls a Docker image, sets up a build environment, clones the application repository, builds and tests the application, and deploys it to Docker Hub, updating the deployment manifest in the process.
 
-Prerequisites:
+## Table of Contents
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Pipeline Stages](#pipeline-stages)
+- [Setup Instructions](#setup-instructions)
+- [Jenkins Plugins](#jenkins-plugins)
+- [Credentials Configuration](#credentials-configuration)
+- [Contributing](#contributing)
+- [License](#license)
 
-   -  Java application code hosted on a Git repository
-   -   Jenkins server
-   -  Kubernetes cluster
-   -  Helm package manager
-   -  Argo CD
+## Overview
+This Jenkins pipeline automates the continuous integration and continuous deployment (CI/CD) process for the `CICD-App-Deploy` Spring Boot application. It performs the following tasks:
+- Pulls and runs a custom Docker container for the build environment.
+- Installs necessary dependencies (Git, Docker, etc.).
+- Configures SSH for secure Git operations.
+- Clones the application repository.
+- Builds the application using Maven.
+- Runs code quality checks with SonarQube.
+- Builds and pushes a Docker image to Docker Hub.
+- Updates the Kubernetes deployment manifest with the new image tag.
+- Commits and pushes changes to the GitHub repository.
 
-Steps:
+## Prerequisites
+- **Jenkins Server**: A running Jenkins instance with administrative access.
+- **Docker**: Docker installed on the Jenkins server or agent.
+- **GitHub Account**: Access to the `shivendra9203/CICD-App-Deploy` repository.
+- **Docker Hub Account**: Credentials for pushing images to Docker Hub.
+- **SonarQube Server**: A running SonarQube instance (e.g., at `http://54.159.121.142:9000/`).
+- **SSH Key**: An SSH key pair for GitHub authentication.
+- **Jenkins Plugins**: Required plugins installed (see [Jenkins Plugins](#jenkins-plugins)).
 
-    1. Install the necessary Jenkins plugins:
-       1.1 Git plugin
-       1.2 Maven Integration plugin
-       1.3 Pipeline plugin
-       1.4 Kubernetes Continuous Deploy plugin
+## Pipeline Stages
+1. **Pull and Run Docker Container**: Pulls the `shiv9203/docker-maven-agent:v1` image and runs a container.
+2. **Install Dependencies**: Installs Git, Docker, and other tools in the container.
+3. **Setup SSH for Git**: Configures SSH keys for secure Git operations.
+4. **Git Pull App Repo**: Clones the `CICD-App-Deploy` repository.
+5. **Build ARG through Maven**: Builds the Spring Boot application using Maven.
+6. **Test the ARG through SonarQube**: Runs SonarQube analysis for code quality.
+7. **Build Docker Image**: Builds a Docker image for the application.
+8. **Push Docker Image to Docker Hub**: Pushes the image to Docker Hub.
+9. **Update Deployment Image Tag**: Updates the Kubernetes deployment manifest.
+10. **Git Push to GitHub**: Commits and pushes changes to the repository.
 
-    2. Create a new Jenkins pipeline:
-       2.1 In Jenkins, create a new pipeline job and configure it with the Git repository URL for the Java application.
-       2.2 Add a Jenkinsfile to the Git repository to define the pipeline stages.
+## Setup Instructions
+1. **Install Jenkins Plugins**:
+   - Navigate to `Manage Jenkins > Manage Plugins` in the Jenkins UI.
+   - Install the plugins listed in the [Jenkins Plugins](#jenkins-plugins) section.
 
-    3. Define the pipeline stages:
-        Stage 1: Checkout the source code from Git.
-        Stage 2: Build the Java application using Maven.
-        Stage 3: Run unit tests using JUnit and Mockito.
-        Stage 4: Run SonarQube analysis to check the code quality.
-        Stage 5: Package the application into a JAR file.
-        Stage 6: Deploy the application to a test environment using Helm.
-        Stage 7: Run user acceptance tests on the deployed application.
-        Stage 8: Promote the application to a production environment using Argo CD.
+2. **Configure Credentials**:
+   - Go to `Manage Jenkins > Manage Credentials`.
+   - Add the following credentials:
+     - **GitHub SSH Key**: Kind: `SSH Username with private key`, ID: `github-ssh-key`.
+     - **SonarQube Token**: Kind: `Secret text`, ID: `sonarqube-token`.
+     - **Docker Hub Credentials**: Kind: `Username with password`, ID: `docker-cred`.
 
-    4. Configure Jenkins pipeline stages:
-        Stage 1: Use the Git plugin to check out the source code from the Git repository.
-        Stage 2: Use the Maven Integration plugin to build the Java application.
-        Stage 3: Use the JUnit and Mockito plugins to run unit tests.
-        Stage 4: Use the SonarQube plugin to analyze the code quality of the Java application.
-        Stage 5: Use the Maven Integration plugin to package the application into a JAR file.
-        Stage 6: Use the Kubernetes Continuous Deploy plugin to deploy the application to a test environment using Helm.
-        Stage 7: Use a testing framework like Selenium to run user acceptance tests on the deployed application.
-        Stage 8: Use Argo CD to promote the application to a production environment.
+3. **Create a Pipeline Job**:
+   - In Jenkins, click `New Item`, select `Pipeline`, and provide a name.
+   - In the pipeline configuration, select `Pipeline script` and paste the provided pipeline script.
+   - Save and run the pipeline.
 
-    5. Set up Argo CD:
-        Install Argo CD on the Kubernetes cluster.
-        Set up a Git repository for Argo CD to track the changes in the Helm charts and Kubernetes manifests.
-        Create a Helm chart for the Java application that includes the Kubernetes manifests and Helm values.
-        Add the Helm chart to the Git repository that Argo CD is tracking.
+4. **Configure SonarQube**:
+   - Ensure the SonarQube server is accessible at `http://54.159.121.142:9000/`.
+   - Configure the SonarQube token in Jenkins credentials.
 
-    6. Configure Jenkins pipeline to integrate with Argo CD:
-       6.1 Add the Argo CD API token to Jenkins credentials.
-       6.2 Update the Jenkins pipeline to include the Argo CD deployment stage.
+5. **Set Up GitHub Repository**:
+   - Ensure the `shivendra9203/CICD-App-Deploy` repository is accessible via SSH.
+   - Add the SSH public key to the GitHub repository's deploy keys.
 
-    7. Run the Jenkins pipeline:
-       7.1 Trigger the Jenkins pipeline to start the CI/CD process for the Java application.
-       7.2 Monitor the pipeline stages and fix any issues that arise.
+6. **Run the Pipeline**:
+   - Trigger the pipeline manually or configure a webhook for automatic builds on code changes.
 
-This end-to-end Jenkins pipeline will automate the entire CI/CD process for a Java application, from code checkout to production deployment, using popular tools like SonarQube, Argo CD, Helm, and Kubernetes.
-Updated by Jenkins pipeline on Fri May  2 09:24:50 UTC 2025
-Updated by Jenkins pipeline on Fri May  2 09:36:11 UTC 2025
-Updated by Jenkins pipeline on Fri May  2 09:41:15 UTC 2025
-Updated by Jenkins pipeline on Fri May  2 10:33:31 UTC 2025
+## Jenkins Plugins
+The following Jenkins plugins are required for this pipeline:
+- **Git Plugin**: For Git repository operations.
+- **Docker Pipeline Plugin**: For Docker build and push operations.
+- **Credentials Plugin**: For managing credentials securely.
+- **Pipeline Plugin**: For defining and running the pipeline.
+- **Maven Integration Plugin**: For Maven build tasks.
+- **SonarQube Scanner for Jenkins**: For SonarQube integration.
+- **SSH Agent Plugin** (optional): For simplified SSH key management.
+- **Pipeline Utility Steps Plugin** (optional): For advanced file operations.
+
+## Credentials Configuration
+| Credential ID         | Type                     | Description                              |
+|-----------------------|--------------------------|------------------------------------------|
+| `github-ssh-key`      | SSH Username with private key | SSH key for GitHub repository access.    |
+| `sonarqube-token`     | Secret text              | Token for SonarQube server authentication. |
+| `docker-cred`         | Username with password   | Docker Hub username and password.        |
+
+## Contributing
+Contributions are welcome! To contribute:
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature-branch`).
+3. Make your changes and commit them (`git commit -m 'Add feature'`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Create a pull request.
+
+Please ensure your code follows the project's coding standards and includes appropriate documentation.
+
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+**Note**: Update the SonarQube URL, repository details, and other specifics as needed before running the pipeline.
