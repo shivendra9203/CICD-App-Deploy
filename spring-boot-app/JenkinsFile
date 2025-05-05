@@ -1,86 +1,106 @@
 pipeline {
-  agent {
-    docker {
-      image 'shiv9203/docker-maven-agent:v1'
-      args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
-    }
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        sh 'echo passed'
-        checkout([
-          $class: 'GitSCM',
-          branches: [[name: '*/main']],
-          userRemoteConfigs: [[
-            url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
-            credentialsId: 'github'
-          ]]
-        ])
-      }
-    }
-    stage('Build and Test') {
-      steps {
-        sh 'ls -ltr'
-        sh 'cd spring-boot-app && mvn clean package'
-      }
-    }
-    stage('Static Code Analysis') {
-      environment {
-        SONAR_URL = "http://34.224.7.236:9000"
-      }
-      steps {
-        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
-          sh 'cd spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
+    agent any
+    stages {
+        stage('Pull and Run Docker Container') {
+            steps {
+                sh '''
+                    docker pull shiv9203/docker-maven-agent:v1
+                    docker rm -f maven-agent || true
+                    docker run -d --name maven-agent -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock shiv9203/docker-maven-agent:v1 tail -f /dev/null
+                '''
+            }
         }
-      }
-    }
-    stage('Build and Push Docker Image') {
-      environment {
-        DOCKER_IMAGE = "shiv9203/docker-maven-agent:${BUILD_NUMBER}"
-        REGISTRY_CREDENTIALS = credentials('docker-cred')
-      }
-      steps {
-        script {
-          sh 'cd spring-boot-app && docker build -t ${DOCKER_IMAGE} .'
-          def dockerImage = docker.image("${DOCKER_IMAGE}")
-          docker.withRegistry('https://index.docker.io/v1/', "docker-cred") {
-            dockerImage.push()
-          }
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    docker exec maven-agent apt-get update
+                    docker exec maven-agent apt-get install -y git docker.io curl openssh-client
+                '''
+            }
         }
-      }
-    }
-    stage('Update Deployment File') {
-      environment {
-        GIT_REPO_NAME = "CICD-App-Deploy"
-        GIT_USER_NAME = "shivendra9203"
-      }
-      steps {
-        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-          script {
-            checkout([
-              $class: 'GitSCM',
-              branches: [[name: '*/main']],
-              userRemoteConfigs: [[
-                url: 'https://github.com/shivendra9203/CICD-App-Deploy.git',
-                credentialsId: 'github'
-              ]]
-            ])
-            sh '''
-              git config --global --add safe.directory /var/lib/jenkins/workspace/Auto-Deploy
-              ls -la
-              git status
-              git config user.email "shivendrap455@gmail.com"
-              git config user.name "Shivendra Kumar Patel"
-              BUILD_NUMBER=${BUILD_NUMBER}
-              sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" deployment.yml
-              git add deployment.yml
-              git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-              git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-            '''
-          }
+        stage('Setup SSH for Git') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh '''
+                        docker exec maven-agent mkdir -p /root/.ssh
+                        docker exec maven-agent chmod 700 /root/.ssh
+                        docker cp $SSH_KEY maven-agent:/root/.ssh/id_ed25519
+                        docker exec maven-agent chmod 600 /root/.ssh/id_ed25519
+                        docker exec maven-agent bash -c "ssh-keyscan -H github.com > /tmp/known_hosts_temp"
+                        docker exec maven-agent bash -c "mv /tmp/known_hosts_temp /root/.ssh/known_hosts"
+                        docker exec maven-agent chmod 644 /root/.ssh/known_hosts
+                    '''
+                }
+            }
         }
-      }
+        stage('Git Pull App Repo') {
+            steps {
+                sh '''
+                    docker exec maven-agent git clone -b main git@github.com:shivendra9203/CICD-App-Deploy.git /app
+                '''
+            }
+        }
+        stage('Build ARG through Maven') {
+            steps {
+                sh '''
+                    docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn clean package"
+                '''
+            }
+        }
+        stage('Test the ARG through SonarQube') {
+            steps {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn clean verify sonar:sonar \
+                            -Dsonar.projectKey=Spring-Boot-App-Test \
+                            -Dsonar.projectName='Spring-Boot-App-Test' \
+                            -Dsonar.host.url=http://54.159.121.142:9000/ \
+                            -Dsonar.token=$SONAR_TOKEN"
+                    '''
+                }
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    docker exec maven-agent bash -c "cd /app/spring-boot-app && docker build -t app:v1 ."
+                '''
+            }
+        }
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        docker exec maven-agent docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                        docker exec maven-agent docker tag app:v1 $DOCKER_USERNAME/app:v1
+                        docker exec maven-agent docker push $DOCKER_USERNAME/app:v1
+                    '''
+                }
+            }
+        }
+        stage('Update Deployment Image Tag') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        docker exec -e DOCKER_USERNAME=$DOCKER_USERNAME maven-agent bash -c "cd /app/manifests-file && \
+                            sed -i 's|image: shiv9203/docker-maven-agent:.*|image: $DOCKER_USERNAME/app:v1|' deployment.yml && \
+                            cat deployment.yml"
+                    '''
+                }
+            }
+        }
+        stage('Git Push to GitHub') {
+            steps {
+                sh '''
+                    docker exec maven-agent bash -c "cd /app && \
+                        git config user.name 'shivendra9203' && \
+                        git config user.email 'shivendrap455@gmail.com' && \
+                        echo 'Updated by Jenkins pipeline on $(date)' >> README.md && \
+                        git add README.md manifests-file/deployment.yml && \
+                        git commit -m 'Updated deployment image tag to v1 and README by Jenkins pipeline' || true && \
+                        git push origin main"
+                '''
+            }
+        }
     }
-  }
 }
