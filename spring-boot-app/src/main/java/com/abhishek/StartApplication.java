@@ -12,7 +12,7 @@ public class StartApplication {
 
     @GetMapping("/")
     public String index(final Model model) {
-        model.addAttribute("title", "I have successfuly new built by me");
+        model.addAttribute("title", "I have successfuly new built by shiv");
         model.addAttribute("msg", "This application is deployed on to Kubernetes using Argo CD");
         return "index";
     }
