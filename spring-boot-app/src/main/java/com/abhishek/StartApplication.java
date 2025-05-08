@@ -15,7 +15,7 @@ public class StartApplication {
         model.addAttribute("title", "I have successfuly new built by shiv");
         model.addAttribute("msg", "This application is deployed on to Kubernetes using Argo CD");
         return "index";
-    }
+    
 
     public static void main(String[] args) {
         SpringApplication.run(StartApplication.class, args);
