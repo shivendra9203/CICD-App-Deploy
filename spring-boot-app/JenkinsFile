@@ -14,7 +14,7 @@ pipeline {
             steps {
                 sh '''
                     docker exec maven-agent apt-get update
-                    docker exec maven-agent apt-get install -y git docker.io curl openssh-client
+                    docker exec maven-agent apt-get install -y nginx git docker.io curl openssh-client
                 '''
             }
         }
@@ -36,14 +36,14 @@ pipeline {
         stage('Git Pull App Repo') {
             steps {
                 sh '''
-                    docker exec maven-agent git clone -b main git@github.com:shivendra9203/CICD-App-Deploy.git /app
+                    docker exec maven-agent git clone -b main git@github.com:shivendra9203/CICD-App-Deploy.git /app || { echo 'Git clone failed'; exit 1; }
                 '''
             }
         }
         stage('Build ARG through Maven') {
             steps {
                 sh '''
-                    docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn clean package"
+                    docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn clean package" || { echo 'Maven build failed'; exit 1; }
                 '''
             }
         }
@@ -52,10 +52,22 @@ pipeline {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
                         docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn clean verify sonar:sonar \
-                            -Dsonar.projectKey=Spring-Boot-App-Test \
-                            -Dsonar.projectName='Spring-Boot-App-Test' \
-                            -Dsonar.host.url=http://54.159.121.142:9000/ \
-                            -Dsonar.token=$SONAR_TOKEN"
+                          -Dsonar.projectKey=Spring-Boot-App-Test \
+                          -Dsonar.host.url=http://3.80.69.32:9000 \
+                          -Dsonar.login=$SONAR_TOKEN" || { echo 'SonarQube analysis failed'; exit 1; }
+                    '''
+                }
+            }
+        }
+        stage('Quality Gate') {
+            steps {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        docker exec maven-agent bash -c "cd /app/spring-boot-app && mvn sonar:sonar \
+                          -Dsonar.projectKey=Spring-Boot-App-Test \
+                          -Dsonar.host.url=http://3.80.69.32:9000 \
+                          -Dsonar.login=$SONAR_TOKEN \
+                          -Dsonar.qualitygate.wait=true" || { echo 'Quality Gate failed'; exit 1; }
                     '''
                 }
             }
@@ -63,7 +75,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker exec maven-agent bash -c "cd /app/spring-boot-app && docker build -t app:v1 ."
+                    docker exec maven-agent bash -c "cd /app/spring-boot-app && docker build -t app:v1 ." || { echo 'Docker build failed'; exit 1; }
                 '''
             }
         }
@@ -73,7 +85,7 @@ pipeline {
                     sh '''
                         docker exec maven-agent docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
                         docker exec maven-agent docker tag app:v1 $DOCKER_USERNAME/app:v1
-                        docker exec maven-agent docker push $DOCKER_USERNAME/app:v1
+                        docker exec maven-agent docker push $DOCKER_USERNAME/app:v1 || { echo 'Docker push failed'; exit 1; }
                     '''
                 }
             }
@@ -84,7 +96,7 @@ pipeline {
                     sh '''
                         docker exec -e DOCKER_USERNAME=$DOCKER_USERNAME maven-agent bash -c "cd /app/manifests-file && \
                             sed -i 's|image: shiv9203/docker-maven-agent:.*|image: $DOCKER_USERNAME/app:v1|' deployment.yml && \
-                            cat deployment.yml"
+                            cat deployment.yml" || { echo 'Deployment update failed'; exit 1; }
                     '''
                 }
             }
@@ -98,7 +110,7 @@ pipeline {
                         echo 'Updated by Jenkins pipeline on $(date)' >> README.md && \
                         git add README.md manifests-file/deployment.yml && \
                         git commit -m 'Updated deployment image tag to v1 and README by Jenkins pipeline' || true && \
-                        git push origin main"
+                        git push origin main" || { echo 'Git push failed'; exit 1; }
                 '''
             }
         }
